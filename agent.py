@@ -20,28 +20,28 @@ class Agent:
     gamma: float
     gae_lambda: float
 
-    def _gae(self, rollout):
+    def _gae(self, rollout, next_val):
+        adv = torch.empty_like(rollout['vals'])
         returns = torch.empty_like(rollout['vals'])
+        next_return = next_val
         gae = 0
-        for i in reversed(range(returns.shape[0] - 1)):
-            mask = rollout['masks'][i + 1]
-            delta = rollout['rewards'][i] - rollout['vals'][i] +\
-                self.gamma * rollout['vals'][i + 1] * mask
-            gae = delta + self.gamma * self.gae_lambda * mask * gae
-            returns[i] = gae + rollout['vals'][i]
-        return returns
+        for i in reversed(range(adv.shape[0])):
+            m, r = rollout['masks'][i], rollout['rewards'][i]
+            delta = r - rollout['vals'][i] + next_val * m
+            adv[i] = gae = delta + self.gae_lambda * m * gae
+            returns[i] = next_return = r + next_return * m
+            next_val = rollout['vals'][i]
+        adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+        return adv, returns
 
     def update(self, rollout):
         num_step, num_env = rollout['log_probs'].shape[:2]
         with torch.no_grad():
-            rollout['vals'][-1] = self.model(rollout['obs'][-1])[1]
-            returns = self._gae(rollout)
-
-        adv = returns[:-1] - rollout['vals'][:-1]
-        adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+            next_val = self.model(rollout['obs'][-1])[1]
+        rollout['masks'] *= self.gamma
+        adv, returns = self._gae(rollout, next_val)
 
         logs, grads = defaultdict(list), defaultdict(list)
-
         for _ in range(self.epochs * num_step * num_env // self.batch_size):
             idx1d = random.sample(range(num_step * num_env), self.batch_size)
             idx = tuple(zip(*[(i % num_step, i // num_step) for i in idx1d]))
@@ -57,7 +57,7 @@ class Agent:
             surr2 = adv[idx] * \
                 torch.clamp(ratio, 1 - self.pi_clip, 1 + self.pi_clip)
             act_loss = -torch.min(surr1, surr2).mean()
-            val_loss = (vals - returns[idx]).pow(2).mean()
+            val_loss = .5 * (vals - returns[idx]).pow(2).mean()
 
             self.optim.step(-self.ent_k * ent + act_loss +
                             self.val_loss_k * val_loss)

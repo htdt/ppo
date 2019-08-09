@@ -28,21 +28,20 @@ class EnvRunner:
     def __iter__(self):
         r, n = self.rollout_size, self.envs.num_envs
 
-        def tensor(*shape, dtype=torch.float):
+        def tensor(shape=(r, n, 1), dtype=torch.float):
             return torch.empty(*shape, dtype=dtype, device=self.device)
 
         obs_shape = self.envs.observation_space.shape
         obs_dtype = torch.uint8 if len(obs_shape) == 4 else torch.float
-        obs = tensor(r + 1, n, *obs_shape, dtype=obs_dtype)
+        obs = tensor((r + 1, n, *obs_shape), dtype=obs_dtype)
 
-        rewards = tensor(r, n, 1)
-        vals = tensor(r + 1, n, 1)
-        log_probs = tensor(r, n, 1)
-        actions = tensor(r, n, 1, dtype=torch.long)
-        masks = tensor(r + 1, n, 1)
+        rewards = tensor()
+        vals = tensor()
+        log_probs = tensor()
+        actions = tensor(dtype=torch.long)
+        masks = tensor()
 
         step = 0
-        masks[0] = 1
         obs[0] = self.envs.reset()
 
         while True:
@@ -54,7 +53,7 @@ class EnvRunner:
 
             obs[step + 1], rewards[step], terms, infos =\
                 self.envs.step(actions[step])
-            masks[step + 1] = ~terms
+            masks[step] = ~terms
 
             for i, info in enumerate(infos):
                 if 'episode' in info.keys():
@@ -70,6 +69,4 @@ class EnvRunner:
                        'actions': actions,
                        'masks': masks,
                        }
-
-                masks[0].copy_(masks[-1])
                 obs[0].copy_(obs[-1])

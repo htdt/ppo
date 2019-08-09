@@ -11,8 +11,8 @@ agent:
     gamma: .99
     epochs: 4
     batch_size: 64
-    ent_k: .01
-    val_loss_k: 1
+    ent_k: 0
+    val_loss_k: .001
     gae_lambda: .95
 
 env:
