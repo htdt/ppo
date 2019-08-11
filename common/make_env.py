@@ -1,9 +1,10 @@
+import torch
 import gym
 from baselines import bench
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
 from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from baselines.common.vec_env.shmem_vec_env import ShmemVecEnv
-from common.wrappers import TransposeImage, VecPyTorch
+from baselines.common.vec_env import VecEnvWrapper
 
 
 def make_vec_envs(name, num, seed=0):
@@ -18,10 +19,7 @@ def make_vec_envs(name, num, seed=0):
             env.seed(seed + rank)
             env = bench.Monitor(env, None)
             if is_atari:
-                env = wrap_deepmind(env)
-            obs_shape = env.observation_space.shape
-            if len(obs_shape) == 3 and obs_shape[2] in [1, 3]:
-                env = TransposeImage(env, op=[2, 0, 1])
+                env = wrap_deepmind(env, frame_stack=True)
             return env
         return _thunk
 
@@ -29,3 +27,19 @@ def make_vec_envs(name, num, seed=0):
     envs = DummyVecEnv(envs) if num == 1 else ShmemVecEnv(envs, context='fork')
     envs = VecPyTorch(envs)
     return envs
+
+
+class VecPyTorch(VecEnvWrapper):
+    def reset(self):
+        return torch.from_numpy(self.venv.reset())
+
+    def step_async(self, actions):
+        assert len(actions.shape) == 2
+        self.venv.step_async(actions.squeeze(1).cpu().numpy())
+
+    def step_wait(self):
+        obs, reward, done, info = self.venv.step_wait()
+        obs = torch.from_numpy(obs)
+        reward = torch.from_numpy(reward).unsqueeze(dim=1)
+        done = torch.tensor(done.tolist()).unsqueeze(dim=1)
+        return obs, reward, done, info

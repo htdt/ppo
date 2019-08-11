@@ -21,16 +21,21 @@ class Agent:
     gae_lambda: float
 
     def _gae(self, rollout, next_val):
-        adv = torch.empty_like(rollout['vals'])
-        returns = torch.empty_like(rollout['vals'])
-        next_return = next_val
+        m = rollout['masks'] * self.gamma
+        r, v = rollout['rewards'], rollout['vals']
+        adv, returns = torch.empty_like(v), torch.empty_like(v)
         gae = 0
         for i in reversed(range(adv.shape[0])):
-            m, r = rollout['masks'][i], rollout['rewards'][i]
-            delta = r - rollout['vals'][i] + next_val * m
-            adv[i] = gae = delta + self.gae_lambda * m * gae
-            returns[i] = next_return = r + next_return * m
-            next_val = rollout['vals'][i]
+            if i == adv.shape[0] - 1:
+                next_return = next_val
+            else:
+                next_val = v[i + 1]
+                next_return = returns[i + 1]
+
+            delta = r[i] - v[i] + next_val * m[i]
+            adv[i] = gae = delta + self.gae_lambda * m[i] * gae
+            returns[i] = r[i] + next_return * m[i]
+
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
         return adv, returns
 
@@ -38,7 +43,6 @@ class Agent:
         num_step, num_env = rollout['log_probs'].shape[:2]
         with torch.no_grad():
             next_val = self.model(rollout['obs'][-1])[1]
-        rollout['masks'] *= self.gamma
         adv, returns = self._gae(rollout, next_val)
 
         logs, grads = defaultdict(list), defaultdict(list)

@@ -13,6 +13,7 @@ class Conv(nn.Module):
     ):
         super(Conv, self).__init__()
         assert len(channels) == len(kernel_size) == len(stride)
+        input_size = input_size[2], input_size[0], input_size[1]
         self.conv = nn.Sequential(*[
             nn.Sequential(nn.Conv2d(c_in, c_out, ker, st), nn.ReLU())
             for c_in, c_out, ker, st in zip([input_size[0]] + channels[:-1],
@@ -22,7 +23,7 @@ class Conv(nn.Module):
             self.output_size = len(self.conv(tmp).view(-1))
 
     def forward(self, x):
-        x = x.float() / 255
+        x = x.permute(0, 3, 1, 2).float() / 255
         x = self.conv(x)
         x = x.view(x.shape[0], -1)
         return x

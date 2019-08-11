@@ -32,7 +32,7 @@ class EnvRunner:
             return torch.empty(*shape, dtype=dtype, device=self.device)
 
         obs_shape = self.envs.observation_space.shape
-        obs_dtype = torch.uint8 if len(obs_shape) == 4 else torch.float
+        obs_dtype = torch.uint8 if len(obs_shape) == 3 else torch.float
         obs = tensor((r + 1, n, *obs_shape), dtype=obs_dtype)
 
         rewards = tensor()
