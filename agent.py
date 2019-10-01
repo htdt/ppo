@@ -20,22 +20,18 @@ class Agent:
     gamma: float
     gae_lambda: float
 
-    def _gae(self, rollout, next_val):
+    def _gae(self, rollout, last_val):
         m = rollout['masks'] * self.gamma
         r, v = rollout['rewards'], rollout['vals']
-        adv, returns = torch.empty_like(v), torch.empty_like(v)
+        adv = torch.empty_like(v)
+        n_steps = adv.shape[0]
         gae = 0
-        for i in reversed(range(adv.shape[0])):
-            if i == adv.shape[0] - 1:
-                next_return = next_val
-            else:
-                next_val = v[i + 1]
-                next_return = returns[i + 1]
-
+        for i in reversed(range(n_steps)):
+            next_val = last_val if i == n_steps - 1 else v[i + 1]
             delta = r[i] - v[i] + next_val * m[i]
             adv[i] = gae = delta + self.gae_lambda * m[i] * gae
-            returns[i] = r[i] + next_return * m[i]
 
+        returns = adv + v
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
         return adv, returns
 
