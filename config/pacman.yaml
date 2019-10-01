@@ -1,3 +1,5 @@
+# https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/atari-ppo.yaml
+
 optimizer:
     lr: 5e-5
     eps: 1e-5
@@ -5,7 +7,7 @@ optimizer:
 
 conv:
     channels: [32, 64, 64]
-    kernel_size: [8, 4, 3]
+    kernel: [8, 4, 3]
     stride: [4, 2, 1]
 
 model:
@@ -15,18 +17,18 @@ agent:
     pi_clip: .1
     gamma: .99
     epochs: 10
-    batch_size: 512
+    batch_size: 500
     ent_k: .01
-    val_loss_k: .1
+    val_loss_k: .5
     gae_lambda: .95
 
 env:
     name: MsPacmanNoFrameskip-v4
-    num: 100
+    num: 50
 
 train:
-    steps: 20000
-    rollout_size: 64
+    steps: 10000
+    rollout_size: 100
     log_every: 1
     checkpoint_every: 500
     checkpoint_name: models/pacman_{n_iter}.pt

@@ -4,6 +4,7 @@ import torch.nn as nn
 from torch.distributions import Categorical
 from common.conv import Conv
 from common.cfg import find_checkpoint
+from common.tools import init_ortho
 
 
 class ActorCritic(nn.Module):
@@ -11,8 +12,8 @@ class ActorCritic(nn.Module):
         self,
         output_size: int,
         device: str,
+        hidden_sizes: List[int],
         input_size: int = None,
-        hidden_sizes: List[int] = None,
         conv: Conv = None,
     ):
         super(ActorCritic, self).__init__()
@@ -24,17 +25,17 @@ class ActorCritic(nn.Module):
             input_size = conv.output_size
         assert input_size is not None
 
-        if hidden_sizes is None:
-            self.fc = None
-        else:
-            self.fc = nn.Sequential(*[
-                nn.Sequential(nn.Linear(s_in, s_out), nn.ReLU())
-                for s_in, s_out in zip(
-                    [input_size] + hidden_sizes[:-1], hidden_sizes)])
-            input_size = hidden_sizes[-1]
+        def with_relu(m):
+            return nn.Sequential(init_ortho(m, 'relu'), nn.ReLU())
 
-        self.pi = nn.Linear(input_size, output_size)
-        self.val = nn.Linear(input_size, 1)
+        self.fc = nn.Sequential(*[
+            with_relu(nn.Linear(s_in, s_out))
+            for s_in, s_out in zip(
+                [input_size] + hidden_sizes[:-1], hidden_sizes)])
+        input_size = hidden_sizes[-1]
+
+        self.pi = init_ortho(nn.Linear(input_size, output_size), .01)
+        self.val = init_ortho(nn.Linear(input_size, 1))
 
     def forward(self, x):
         if self.conv is not None:
